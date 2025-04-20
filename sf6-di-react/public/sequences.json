@@ -1,5 +1,6 @@
 [
 
-    { "id": "sample", "src": "/videos/sample.mp4", "driveImpactTime": 1.003  }
+    { "id": "di-test", "src": "/videos/sample.mp4", "driveImpactTime": 1.003  },
+    { "id": "no-di-test", "src": "/videos/sample2.mp4", "driveImpactTime": null  }
   ]
   

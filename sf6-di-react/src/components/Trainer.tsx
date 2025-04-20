@@ -21,6 +21,7 @@ const Trainer: FC<TrainerProps> = ({ sequences }) => {
   } | null>(null);
   const [windowOpen, setWindowOpen] = useState(false);
   const [currentIdx, setCurrentIdx] = useState(0);
+  const [inputEnabled, setInputEnabled] = useState(true);
   const [stats, setStats] = useState({ pass: 0, fail: 0 });
   const [feedback, setFeedback] = useState<{
     text: string;
@@ -40,82 +41,82 @@ const Trainer: FC<TrainerProps> = ({ sequences }) => {
     const video = videoRef.current;
     if (video) {
       video.currentTime = 0;
-      video.play();
+      video.play()?.catch(() => {
+        // ignore the “interrupted by pause” error
+      });
     }
   }, [sequence]);
-
+  const pauseAndResult = (success: boolean, msg: string) => {
+    const v = videoRef.current;
+    if (v) v.pause();
+    handleResult(success, msg);
+  };
   // Timing & input handling
   useEffect(() => {
-    let windowStartMs: number;
-
     const video = videoRef.current;
     if (!video) return;
 
+    let opened = false;
+    let windowTimer: ReturnType<typeof setTimeout> | null = null;
     let userClicked = false;
-    const onTimeUpdate = () => {
+
+    // 1) Frame‐level watcher
+    const onFrame = (
+      _now: DOMHighResTimeStamp,
+      meta: VideoFrameCallbackMetadata
+    ) => {
+      const t = meta.mediaTime;
       if (
-        !windowRef.current.open &&
+        !opened &&
         sequence.driveImpactTime !== null &&
-        video.currentTime >= sequence.driveImpactTime
+        t >= sequence.driveImpactTime
       ) {
-        windowRef.current.open = true;
+        opened = true;
         setWindowOpen(true);
-        windowStartMs = performance.now();
-        console.log(
-          `→ window open @ videoTime=${video.currentTime.toFixed(
-            3
-          )}s, ms=${windowStartMs.toFixed(1)}`
-        );
-        windowRef.current.timer = setTimeout(() => {
-          const windowEndMs = performance.now();
-          console.log(
-            `← window close after ${(windowEndMs - windowStartMs).toFixed(1)}ms`
-          );
-          windowRef.current.open = false;
+
+        // schedule “Missed!” if they never click
+        windowTimer = setTimeout(() => {
           setWindowOpen(false);
           if (!userClicked) handleResult(false, "Missed!");
         }, DRIVE_WINDOW_MS);
       }
+      // re‑arm for the next rendered frame
+      video.requestVideoFrameCallback(onFrame);
     };
-    // NEW: when a no‑DI clip finishes, that’s a success if the user never clicked
-    const onEnded = () => {
-      if (sequence.driveImpactTime === null && !userClicked) {
-        // no pause here
-        setStats(prev => ({ pass: prev.pass + 1, fail: prev.fail }));
-        setOverlay({ text: 'Nice dodge!', success: true });
-        setTimeout(() => {
-          setOverlay(null);
-          setCurrentIdx(i => (i + 1) % sequences.length);
-        }, 1000);
-      }
-    };
+
+    // kick off the frame loop
+    video.requestVideoFrameCallback(onFrame);
+
+    // 2) Your existing click/space handler (unchanged)
     const handleUserInput = () => {
-      const clickMs = performance.now();
-      const clickTime = video.currentTime;
-      console.log(
-        `✱ click @ videoTime=${clickTime.toFixed(3)}s, ms=${clickMs.toFixed(
-          1
-        )} (delta=${(clickMs - windowStartMs).toFixed(1)}ms)`
-      );
+      if (!inputEnabled) return;    // do nothing if we’re locked out
       userClicked = true;
-      if (windowRef.current.timer) clearTimeout(windowRef.current.timer);
+      if (windowTimer) clearTimeout(windowTimer);
+      if (windowTimer) clearTimeout(windowTimer);
 
       const currentTime = video.currentTime;
-      console.log("User clicked at video time", video.currentTime);
       if (currentTime < (sequence.driveImpactTime ?? Infinity)) {
-        handleResult(false, "Too soon!");
-      } else if (windowRef.current.open) {
-        handleResult(true, "Good DI!");
+        pauseAndResult(false, "DI wasn't active!");
+      } else if (opened) {
+        pauseAndResult(true, "Good DI!");
       } else {
-        // either too late or false positive
-        handleResult(
+        pauseAndResult(
           false,
           sequence.driveImpactTime === null ? "False positive" : "Too late!"
         );
       }
     };
 
-    video.addEventListener("timeupdate", onTimeUpdate);
+    // 3) End‐of‐video fallback (unchanged)
+    const onEnded = () => {
+      if (userClicked) return;
+      if (sequence.driveImpactTime === null) {
+        handleResult(true, "Good Block!");
+      } else {
+        handleResult(false, "Missed!");
+      }
+    };
+
     video.addEventListener("ended", onEnded);
     window.addEventListener("click", handleUserInput);
     window.addEventListener("keydown", (e) => {
@@ -123,18 +124,23 @@ const Trainer: FC<TrainerProps> = ({ sequences }) => {
     });
 
     return () => {
-      video.removeEventListener("timeupdate", onTimeUpdate);
+      // cleanup timer + listeners
+      if (windowTimer) clearTimeout(windowTimer);
       video.removeEventListener("ended", onEnded);
+      windowRef.current.open = false;
+      setWindowOpen(false);
       window.removeEventListener("click", handleUserInput);
       window.removeEventListener("keydown", handleUserInput as any);
-      if (windowRef.current.timer) clearTimeout(windowRef.current.timer);
-      windowRef.current.open = false;
     };
   }, [sequence]);
 
   function handleResult(success: boolean, message: string) {
-    const video = videoRef.current;
-    if (video) video.pause();
+    console.log("▶ handleResult called:", success, message);
+    // 1) lock out any more clicks until we reset
+    setInputEnabled(false);
+    // 2) pause, overlay, stats…
+    const video = videoRef.current!;
+    video.pause();
     setOverlay({ text: message, success });
     setStats((prev) => ({
       pass: prev.pass + (success ? 1 : 0),
@@ -143,12 +149,13 @@ const Trainer: FC<TrainerProps> = ({ sequences }) => {
 
     setFeedback({ text: message, success });
 
-    // Next clip after feedback
+     // 3) after 1s, clear & advance, and re‑enable input
     setTimeout(() => {
       setOverlay(null);
-      setFeedback(null);
       windowRef.current.open = false;
+      console.log("⏭ advancing to next clip");
       setCurrentIdx((idx) => (idx + 1) % sequences.length);
+      setInputEnabled(true);   
     }, 1000);
   }
 
