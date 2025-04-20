@@ -1,6 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { promises as fs } from 'fs';
 import path from 'path';
+import { Sequence } from '../admin/page';
 
 // Helper to get the path to public/sequences.json
 const DATA_FILE = path.join(process.cwd(), 'public', 'sequences.json');
@@ -14,7 +15,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     if (req.method === 'POST') {
-      const updated: any = req.body;
+      const updated  = req.body as Sequence[];
       // Validate: should be an array of sequences
       if (!Array.isArray(updated)) {
         return res.status(400).json({ error: 'Payload must be an array' });
@@ -26,7 +27,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Method not allowed
     res.setHeader('Allow', ['GET', 'POST']);
     return res.status(405).end(`Method ${req.method} Not Allowed`);
-  } catch (err: any) {
+  } catch (err) {
     console.error('API /api/sequences error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }

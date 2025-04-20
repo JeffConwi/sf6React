@@ -13,12 +13,10 @@ const DRIVE_WINDOW_MS = (1000 / 60) * 25; // ~416.67 ms
 interface TrainerProps {
   sequences: Sequence[];
 }
-
+type Overlay = { text: string; success: boolean; reactionTime?: number };
 const Trainer: FC<TrainerProps> = ({ sequences }) => {
-  const [overlay, setOverlay] = useState<{
-    text: string;
-    success: boolean;
-  } | null>(null);
+  const [overlay, setOverlay] = useState<Overlay | null>(null);
+
   const windowOpenRef = useRef(false);
   const didResultRef = useRef(false);
   const [windowOpen, setWindowOpen] = useState(false);
@@ -127,7 +125,7 @@ const Trainer: FC<TrainerProps> = ({ sequences }) => {
       if (windowTimer) clearTimeout(windowTimer);
       video.removeEventListener('ended', onEnded);
       window.removeEventListener('click', onClick);
-      window.removeEventListener('keydown', onClick as any);
+      window.removeEventListener('keydown', onClick);
       windowOpenRef.current = false;
       setWindowOpen(false);
     };
@@ -294,32 +292,30 @@ const Trainer: FC<TrainerProps> = ({ sequences }) => {
             }}
           />
         )}
-        {overlay && (
+ {/* Overlay with result + stats */}
+ {overlay && (
           <Box
             sx={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              bgcolor: "rgba(0,0,0,0.6)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              zIndex: 10,
+              position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+              bgcolor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center'
             }}
           >
-            <Typography
-              variant="h3"
-              sx={{
-                color: overlay.success ? "lime" : "tomato",
-                p: 2,
-                bgcolor: "rgba(0,0,0,0.8)",
-                borderRadius: 2,
-              }}
-            >
-              {overlay.text}
-            </Typography>
+            <Box>
+              <Typography
+                variant="h3"
+                sx={{ color: overlay.success ? 'lime' : 'tomato', mb: 2 }}
+              >
+                {overlay.text}
+              </Typography>
+              {overlay.reactionTime != null && (
+                <Typography variant="h6">
+                  Reaction Time: {overlay.reactionTime.toFixed(0)} ms
+                </Typography>
+              )}
+              <Typography variant="body1" sx={{ mt: 1 }}>
+                Pass: {stats.pass} ({pct(stats.pass)}%) • Fail: {stats.fail} ({pct(stats.fail)}%)
+              </Typography>
+            </Box>
           </Box>
         )}
       </Box>
