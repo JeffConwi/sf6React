@@ -91,7 +91,7 @@ const Trainer: FC<TrainerProps> = ({ sequences }) => {
       console.log(`✱ click at mediaTime=${clickTime.toFixed(3)}s (ts=${clickMs.toFixed(1)}ms), windowOpen=${windowOpen}`);
   
       if (sequence.driveImpactTime === null) {
-        pauseAndResult(false, 'False positive');
+        pauseAndResult(false, 'DI Not active');
       } else if (clickTime < sequence.driveImpactTime!) {
         pauseAndResult(false, 'Too soon!');
       } else if (windowOpen) {
@@ -212,7 +212,7 @@ const Trainer: FC<TrainerProps> = ({ sequences }) => {
       if (windowOpenRef.current) {
         pauseAndResult(true, 'Good DI!');
       } else if (sequence.driveImpactTime === null) {
-        pauseAndResult(false, 'False positive');
+        pauseAndResult(false, 'DI not Active!');
       } else if (clickMedia < sequence.driveImpactTime) {
         pauseAndResult(false, 'Too soon!');
       } else {
