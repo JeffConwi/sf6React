@@ -228,7 +228,9 @@ const Trainer: FC<TrainerProps> = ({ sequences }) => {
     return () => {
       listening = false;
       window.removeEventListener('click', handleClick);
-      window.removeEventListener('keydown', handleClick);
+      window.removeEventListener('keydown', e => {
+      if (e.code === 'Space') handleClick(e);
+    });
       windowOpenRef.current = false;
       setWindowOpen(false);
     };
