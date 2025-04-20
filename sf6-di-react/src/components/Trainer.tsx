@@ -40,14 +40,17 @@ const Trainer: FC<TrainerProps> = ({ sequences }) => {
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
-  
+
     let listening = true;
     let windowTimer: ReturnType<typeof setTimeout> | null = null;
-  
+
     // 1) FRAME‑LEVEL WATCHER
-    const onFrame = (_now: DOMHighResTimeStamp, meta: VideoFrameCallbackMetadata) => {
+    const onFrame = (
+      _now: DOMHighResTimeStamp,
+      meta: VideoFrameCallbackMetadata
+    ) => {
       if (!listening) return;
-  
+
       // Only fire for DI clips
       if (
         sequence.driveImpactTime !== null &&
@@ -58,79 +61,91 @@ const Trainer: FC<TrainerProps> = ({ sequences }) => {
         windowOpenRef.current = true;
 
         setWindowOpen(true);
-  
+
         const openMs = performance.now();
-        console.log(`🔔 DI window OPEN at mediaTime=${meta.mediaTime.toFixed(3)}s (ts=${openMs.toFixed(1)}ms)`);
-  
+        console.log(
+          `🔔 DI window OPEN at mediaTime=${meta.mediaTime.toFixed(
+            3
+          )}s (ts=${openMs.toFixed(1)}ms)`
+        );
+
         // schedule auto‑miss
         windowTimer = setTimeout(() => {
           const closeMs = performance.now();
-          console.log(`🔒 DI window CLOSED after ${(closeMs - openMs).toFixed(1)}ms`);
+          console.log(
+            `🔒 DI window CLOSED after ${(closeMs - openMs).toFixed(1)}ms`
+          );
           if (!listening) return;
           windowOpenRef.current = false;
           setWindowOpen(false);
           listening = false;
-          handleResult(false, 'Missed!');
+          handleResult(false, "Missed!");
         }, DRIVE_WINDOW_MS);
       }
-  
+
       if (listening) video.requestVideoFrameCallback(onFrame);
     };
     video.requestVideoFrameCallback(onFrame);
-  
+
     // 2) INPUT HANDLER
     const onClick = () => {
       if (!inputEnabled || !listening) return;
       listening = false;
       if (windowTimer) clearTimeout(windowTimer);
-  
+
       const clickMs = performance.now();
       const clickTime = video.currentTime;
-      console.log(`✱ click at mediaTime=${clickTime.toFixed(3)}s (ts=${clickMs.toFixed(1)}ms), windowOpen=${windowOpen}`);
-  
+      console.log(
+        `✱ click at mediaTime=${clickTime.toFixed(3)}s (ts=${clickMs.toFixed(
+          1
+        )}ms), windowOpen=${windowOpen}`
+      );
+
       if (sequence.driveImpactTime === null) {
-        pauseAndResult(false, 'DI Not active');
+        pauseAndResult(false, "DI Not active");
       } else if (clickTime < sequence.driveImpactTime!) {
-        pauseAndResult(false, 'Too soon!');
+        pauseAndResult(false, "Too soon!");
       } else if (windowOpen) {
-        pauseAndResult(true, 'Good DI!');
+        pauseAndResult(true, "Good DI!");
       } else {
-        pauseAndResult(false, 'Too late!');
+        pauseAndResult(false, "Too late!");
       }
     };
-    window.addEventListener('click', onClick);
-    window.addEventListener('keydown', e => { if (e.code === 'Space') onClick(); });
-  
+    window.addEventListener("click", onClick);
+    window.addEventListener("keydown", (e) => {
+      if (e.code === "Space") onClick();
+    });
+
     // 3) ENDED FALLBACK (unchanged)
     const onEnded = () => {
       if (!listening) return;
       listening = false;
       if (sequence.driveImpactTime === null) {
-        console.log('🔔 clip ended with no DI → auto-success');
-        handleResult(true, 'Nice block!');
+        console.log("🔔 clip ended with no DI → auto-success");
+        handleResult(true, "Nice block!");
       } else if (!windowOpen) {
-        console.log('🔔 clip ended before window opened → auto-miss');
-        handleResult(false, 'Missed!');
+        console.log("🔔 clip ended before window opened → auto-miss");
+        handleResult(false, "Missed!");
       }
     };
-    video.addEventListener('ended', onEnded);
-  
+    video.addEventListener("ended", onEnded);
+
     // 4) play
     video.currentTime = 0;
     video.play()?.catch(() => {});
-  
+
     // CLEANUP
     return () => {
       listening = false;
       if (windowTimer) clearTimeout(windowTimer);
-      video.removeEventListener('ended', onEnded);
-      window.removeEventListener('click', onClick);
-      window.removeEventListener('keydown', onClick);
+      video.removeEventListener("ended", onEnded);
+      window.removeEventListener("click", onClick);
+      window.removeEventListener("keydown", onClick);
       windowOpenRef.current = false;
       setWindowOpen(false);
     };
   }, [sequence]);
-  
+
   const pauseAndResult = (success: boolean, msg: string) => {
     const v = videoRef.current;
     if (v) v.pause();
@@ -138,6 +153,7 @@ const Trainer: FC<TrainerProps> = ({ sequences }) => {
   };
 
   // Timing & input handling
+// In your useEffect hook that handles timing and input
 useEffect(() => {
   const video = videoRef.current;
   if (!video) return;
@@ -194,6 +210,7 @@ useEffect(() => {
   video.requestVideoFrameCallback(onFrame);
 
   // INPUT handler
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const handleClick = (e: MouseEvent | KeyboardEvent) => {
     const clickTs = performance.now();
     const clickMedia = video.currentTime;
@@ -232,18 +249,18 @@ useEffect(() => {
   return () => {
     listening = false;
     window.removeEventListener('click', handleClick);
-    window.removeEventListener('keydown', handleKeydown); // Fixed line - using the named function
+    window.removeEventListener('keydown', handleKeydown);
     windowOpenRef.current = false;
     setWindowOpen(false);
   };
 }, [sequence]);
-  
+
   function handleResult(success: boolean, message: string) {
     console.log("▶ handleResult called:", success, message);
     const video = videoRef.current!;
     video.pause();
     setOverlay({ text: message, success });
-    setStats(prev => ({
+    setStats((prev) => ({
       pass: prev.pass + (success ? 1 : 0),
       fail: prev.fail + (success ? 0 : 1),
     }));
@@ -263,7 +280,6 @@ useEffect(() => {
       setInputEnabled(true);
     }, 1000);
   }
-  
 
   const total = stats.pass + stats.fail;
   const pct = (count: number) =>
@@ -296,18 +312,25 @@ useEffect(() => {
             }}
           />
         )}
- {/* Overlay with result + stats */}
- {overlay && (
+        {/* Overlay with result + stats */}
+        {overlay && (
           <Box
             sx={{
-              position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-              bgcolor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center'
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              bgcolor: "rgba(0,0,0,0.6)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
             }}
           >
             <Box>
               <Typography
                 variant="h3"
-                sx={{ color: overlay.success ? 'lime' : 'tomato', mb: 2 }}
+                sx={{ color: overlay.success ? "lime" : "tomato", mb: 2 }}
               >
                 {overlay.text}
               </Typography>
@@ -317,7 +340,8 @@ useEffect(() => {
                 </Typography>
               )}
               <Typography variant="body1" sx={{ mt: 1 }}>
-                Pass: {stats.pass} ({pct(stats.pass)}%) • Fail: {stats.fail} ({pct(stats.fail)}%)
+                Pass: {stats.pass} ({pct(stats.pass)}%) • Fail: {stats.fail} (
+                {pct(stats.fail)}%)
               </Typography>
             </Box>
           </Box>
