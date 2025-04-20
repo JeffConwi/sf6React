@@ -20,6 +20,7 @@ const Trainer: FC<TrainerProps> = ({ sequences }) => {
     success: boolean;
   } | null>(null);
   const windowOpenRef = useRef(false);
+  const didResultRef = useRef(false);
   const [windowOpen, setWindowOpen] = useState(false);
   const [currentIdx, setCurrentIdx] = useState(0);
   const [inputEnabled, setInputEnabled] = useState(true);
@@ -144,128 +145,133 @@ const Trainer: FC<TrainerProps> = ({ sequences }) => {
     const video = videoRef.current;
     if (!video) return;
   
-    // reset state for this clip
+    // reset per‑clip
+    didResultRef.current = false;
     windowOpenRef.current = false;
     setWindowOpen(false);
-    let clicked = false;
+    setInputEnabled(true);
+    setOverlay(null);
   
-    // timers we’ll clear on cleanup
-    let openTimer: ReturnType<typeof setTimeout> | null   = null;
-    let closeTimer: ReturnType<typeof setTimeout> | null  = null;
-    let endTimer: ReturnType<typeof setTimeout> | null    = null;
+    let listening = true;
+    let openTs = 0;
   
-    // 1) When metadata is loaded, schedule everything
-    const onLoaded = () => {
-      // Only schedule a reaction window for clips with a driveImpactTime
-      if (sequence.driveImpactTime !== null) {
-        const openMs  = sequence.driveImpactTime * 1000;
-        const closeMs = openMs + DRIVE_WINDOW_MS;
+    // FRAME‑PERFECT watcher
+    const onFrame = (_now: DOMHighResTimeStamp, meta: VideoFrameCallbackMetadata) => {
+      if (!listening) return;
   
-        // open the visual cue
-        openTimer = setTimeout(() => {
-          windowOpenRef.current = true;
-
-          setWindowOpen(true);
-        }, openMs);
+      // only for DI clips
+      if (
+        sequence.driveImpactTime !== null &&
+        !windowOpenRef.current &&
+        meta.mediaTime >= sequence.driveImpactTime
+      ) {
+        windowOpenRef.current = true;
+        setWindowOpen(true);
+        openTs = performance.now();
+        console.log(
+          `🔔 [${sequence.id}] Window OPEN at mediaTime=${meta.mediaTime.toFixed(
+            3
+          )}s , ts=${openTs.toFixed(1)}ms`
+        );
   
-        // close it & auto‑miss if no click
-        closeTimer = setTimeout(() => {
+        // auto‑miss if you never click
+        setTimeout(() => {
+          if (!listening) return;
+          const closeTs = performance.now();
+          console.log(
+            `🔒 [${sequence.id}] Window CLOSED after ${
+              closeTs - openTs
+            }ms  (should be ~${DRIVE_WINDOW_MS}ms)`
+          );
           windowOpenRef.current = false;
           setWindowOpen(false);
-
-          if (!clicked) handleResult(false, 'Missed!');
-        }, closeMs);
+          listening = false;
+          handleResult(false, 'Missed!');
+        }, DRIVE_WINDOW_MS);
       }
   
-      // ALWAYS schedule the end‑of‑clip fallback
-      //   • if no DI → auto‑success (dodge)
-      //   • if DI but it never got to open → auto‑miss
-      const fudge = 100; // small extra to ensure ended
-      endTimer = setTimeout(() => {
-        if (clicked) return;
-        if (sequence.driveImpactTime === null) {
-          handleResult(true, 'Nice dodge!');
-        } else {
-          handleResult(false, 'Missed!');
-        }
-      }, (video.duration * 1000) + fudge);
+      if (listening) video.requestVideoFrameCallback(onFrame);
     };
   
-    video.addEventListener('loadedmetadata', onLoaded);
+    // kick off
+    video.requestVideoFrameCallback(onFrame);
   
-    // 2) Click/space handler — clear all timers, then score
+    // INPUT handler
     const handleClick = () => {
-      if (!inputEnabled) return;
-  
-      clicked = true;
-      [openTimer, closeTimer, endTimer].forEach(t => t && clearTimeout(t));
-  
-      const now = video.currentTime;
-      if (sequence.driveImpactTime === null) {
-        pauseAndResult(false, 'DI not Active!');
-      } else if (now < sequence.driveImpactTime) {
-        pauseAndResult(false, 'Too soon!');
-      } else if (windowOpenRef.current) {
+      const clickTs = performance.now();
+      const clickMedia = video.currentTime;
+      console.log(
+        `✱ [${sequence.id}] CLICK at mediaTime=${clickMedia.toFixed(
+          3
+        )}s , ts=${clickTs.toFixed(1)}ms , windowOpen=${windowOpenRef.current}`
+      );
+      if (!inputEnabled || !listening) return;
+      listening = false;
+      // clear any pending miss
+      // (we’re OK letting setTimeouts fall out because listening=false)
+      if (windowOpenRef.current) {
         pauseAndResult(true, 'Good DI!');
+      } else if (sequence.driveImpactTime === null) {
+        pauseAndResult(false, 'False positive');
+      } else if (clickMedia < sequence.driveImpactTime) {
+        pauseAndResult(false, 'Too soon!');
       } else {
         pauseAndResult(false, 'Too late!');
       }
     };
-  
     window.addEventListener('click', handleClick);
     window.addEventListener('keydown', e => {
       if (e.code === 'Space') handleClick();
     });
   
-    // (Optional) ensure video actually starts
+    // play from the top
     video.currentTime = 0;
-    video.play()?.catch(() => { /* swallow interrupted errors */ });
+    video.play()?.catch(() => {});
   
-    // CLEANUP on sequence change
     return () => {
-      video.removeEventListener('loadedmetadata', onLoaded);
+      listening = false;
       window.removeEventListener('click', handleClick);
       window.removeEventListener('keydown', handleClick as any);
-      [openTimer, closeTimer, endTimer].forEach(t => t && clearTimeout(t));
       windowOpenRef.current = false;
       setWindowOpen(false);
-
     };
   }, [sequence]);
   
   
   
+  
+  
 
   function handleResult(success: boolean, message: string) {
+
     console.log("▶ handleResult called:", success, message);
-    // 1) lock out any more clicks until we reset
-    setInputEnabled(false);
-    // 2) pause, overlay, stats…
+
     const video = videoRef.current!;
     video.pause();
     setOverlay({ text: message, success });
-    setStats((prev) => ({
+    setStats(prev => ({
       pass: prev.pass + (success ? 1 : 0),
       fail: prev.fail + (success ? 0 : 1),
     }));
-
+    // you still have setFeedback if you need it, but you can remove one of overlay/feedback
     setFeedback({ text: message, success });
-
-     // 3) after 1s, clear & advance, and re‑enable input
+  
+    // 3) after 1s, clear & advance, and re‑enable input
     setTimeout(() => {
       setOverlay(null);
       windowRef.current.open = false;
       console.log("⏭ advancing to next clip");
       setCurrentIdx(() => {
         let next = Math.floor(Math.random() * sequences.length);
-        // avoid immediate repeat:
         if (next === currentIdx && sequences.length > 1) {
           next = (next + 1) % sequences.length;
         }
         return next;
-      });      setInputEnabled(true);   
+      });
+      setInputEnabled(true);
     }, 1000);
   }
+  
 
   const total = stats.pass + stats.fail;
   const pct = (count: number) =>
