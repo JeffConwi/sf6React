@@ -138,103 +138,105 @@ const Trainer: FC<TrainerProps> = ({ sequences }) => {
   };
 
   // Timing & input handling
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-  
-    // reset per‑clip
-    didResultRef.current = false;
+useEffect(() => {
+  const video = videoRef.current;
+  if (!video) return;
+
+  // reset per‑clip
+  didResultRef.current = false;
+  windowOpenRef.current = false;
+  setWindowOpen(false);
+  setInputEnabled(true);
+  setOverlay(null);
+
+  let listening = true;
+  let openTs = 0;
+
+  // FRAME‑PERFECT watcher
+  const onFrame = (_now: DOMHighResTimeStamp, meta: VideoFrameCallbackMetadata) => {
+    if (!listening) return;
+
+    // only for DI clips
+    if (
+      sequence.driveImpactTime !== null &&
+      !windowOpenRef.current &&
+      meta.mediaTime >= sequence.driveImpactTime
+    ) {
+      windowOpenRef.current = true;
+      setWindowOpen(true);
+      openTs = performance.now();
+      console.log(
+        `🔔 [${sequence.id}] Window OPEN at mediaTime=${meta.mediaTime.toFixed(
+          3
+        )}s , ts=${openTs.toFixed(1)}ms`
+      );
+
+      // auto‑miss if you never click
+      setTimeout(() => {
+        if (!listening) return;
+        const closeTs = performance.now();
+        console.log(
+          `🔒 [${sequence.id}] Window CLOSED after ${
+            closeTs - openTs
+          }ms  (should be ~${DRIVE_WINDOW_MS}ms)`
+        );
+        windowOpenRef.current = false;
+        setWindowOpen(false);
+        listening = false;
+        handleResult(false, 'Missed!');
+      }, DRIVE_WINDOW_MS);
+    }
+
+    if (listening) video.requestVideoFrameCallback(onFrame);
+  };
+
+  // kick off
+  video.requestVideoFrameCallback(onFrame);
+
+  // INPUT handler
+  const handleClick = (e: MouseEvent | KeyboardEvent) => {
+    const clickTs = performance.now();
+    const clickMedia = video.currentTime;
+    console.log(
+      `✱ [${sequence.id}] CLICK at mediaTime=${clickMedia.toFixed(
+        3
+      )}s , ts=${clickTs.toFixed(1)}ms , windowOpen=${windowOpenRef.current}`
+    );
+    if (!inputEnabled || !listening) return;
+    listening = false;
+    // clear any pending miss
+    // (we're OK letting setTimeouts fall out because listening=false)
+    if (windowOpenRef.current) {
+      pauseAndResult(true, 'Good DI!');
+    } else if (sequence.driveImpactTime === null) {
+      pauseAndResult(false, 'DI not Active!');
+    } else if (clickMedia < sequence.driveImpactTime) {
+      pauseAndResult(false, 'Too soon!');
+    } else {
+      pauseAndResult(false, 'Too late!');
+    }
+  };
+
+  // Create a separate properly typed function for the keydown event
+  const handleKeydown = (e: KeyboardEvent) => {
+    if (e.code === 'Space') handleClick(e);
+  };
+
+  window.addEventListener('click', handleClick);
+  window.addEventListener('keydown', handleKeydown);
+
+  // play from the top
+  video.currentTime = 0;
+  video.play()?.catch(() => {});
+
+  return () => {
+    listening = false;
+    window.removeEventListener('click', handleClick);
+    window.removeEventListener('keydown', handleKeydown); // Fixed line - using the named function
     windowOpenRef.current = false;
     setWindowOpen(false);
-    setInputEnabled(true);
-    setOverlay(null);
-  
-    let listening = true;
-    let openTs = 0;
-  
-    // FRAME‑PERFECT watcher
-    const onFrame = (_now: DOMHighResTimeStamp, meta: VideoFrameCallbackMetadata) => {
-      if (!listening) return;
-  
-      // only for DI clips
-      if (
-        sequence.driveImpactTime !== null &&
-        !windowOpenRef.current &&
-        meta.mediaTime >= sequence.driveImpactTime
-      ) {
-        windowOpenRef.current = true;
-        setWindowOpen(true);
-        openTs = performance.now();
-        console.log(
-          `🔔 [${sequence.id}] Window OPEN at mediaTime=${meta.mediaTime.toFixed(
-            3
-          )}s , ts=${openTs.toFixed(1)}ms`
-        );
-  
-        // auto‑miss if you never click
-        setTimeout(() => {
-          if (!listening) return;
-          const closeTs = performance.now();
-          console.log(
-            `🔒 [${sequence.id}] Window CLOSED after ${
-              closeTs - openTs
-            }ms  (should be ~${DRIVE_WINDOW_MS}ms)`
-          );
-          windowOpenRef.current = false;
-          setWindowOpen(false);
-          listening = false;
-          handleResult(false, 'Missed!');
-        }, DRIVE_WINDOW_MS);
-      }
-  
-      if (listening) video.requestVideoFrameCallback(onFrame);
-    };
-  
-    // kick off
-    video.requestVideoFrameCallback(onFrame);
-  
-    // INPUT handler
-    const handleClick = (e: MouseEvent | KeyboardEvent) => {
-      const clickTs = performance.now();
-      const clickMedia = video.currentTime;
-      console.log(
-        `✱ [${sequence.id}] CLICK at mediaTime=${clickMedia.toFixed(
-          3
-        )}s , ts=${clickTs.toFixed(1)}ms , windowOpen=${windowOpenRef.current}`
-      );
-      if (!inputEnabled || !listening) return;
-      listening = false;
-      // clear any pending miss
-      // (we’re OK letting setTimeouts fall out because listening=false)
-      if (windowOpenRef.current) {
-        pauseAndResult(true, 'Good DI!');
-      } else if (sequence.driveImpactTime === null) {
-        pauseAndResult(false, 'DI not Active!');
-      } else if (clickMedia < sequence.driveImpactTime) {
-        pauseAndResult(false, 'Too soon!');
-      } else {
-        pauseAndResult(false, 'Too late!');
-      }
-    };
-    window.addEventListener('click', handleClick);
-    window.addEventListener('keydown', e => {
-      if (e.code === 'Space') handleClick(e);
-    });
-  
-    // play from the top
-    video.currentTime = 0;
-    video.play()?.catch(() => {});
-  
-    return () => {
-      listening = false;
-      window.removeEventListener('click', handleClick);
-      window.removeEventListener('keydown', e => {
-      if (e.code === 'Space') handleClick(e);
-    });
-      windowOpenRef.current = false;
-      setWindowOpen(false);
-    };
-  }, [sequence]);
+  };
+}, [sequence]);
   
   function handleResult(success: boolean, message: string) {
     console.log("▶ handleResult called:", success, message);
