@@ -1,6 +1,5 @@
 [
-    { "id": "ryu-dp",  "src": "/videos/ryu-dp.mp4",  "driveImpactTime": 3.75 },
-    { "id": "ken-hp",  "src": "/videos/ken-hp.mp4",  "driveImpactTime": null  },
-    { "id": "chun-li", "src": "/videos/chun-li.mp4", "driveImpactTime": 2.1  }
+
+    { "id": "sample", "src": "/videos/sample.mp4", "driveImpactTime": 1.003  }
   ]
   

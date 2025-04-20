@@ -2,7 +2,7 @@
 // pages/index.tsx
 import { useEffect, useState } from 'react'
 import dynamic from 'next/dynamic'
-import { Box, Typography, CircularProgress } from '@mui/material'
+import { Box, CircularProgress } from '@mui/material'
 
 // Only import client‑side (video refs)
 const Trainer = dynamic(() => import('@/components/Trainer'), { ssr: false })
