@@ -228,7 +228,7 @@ const Trainer: FC<TrainerProps> = ({ sequences }) => {
     return () => {
       listening = false;
       window.removeEventListener('click', handleClick);
-      window.removeEventListener('keydown', handleClick as any);
+      window.removeEventListener('keydown', handleClick);
       windowOpenRef.current = false;
       setWindowOpen(false);
     };
