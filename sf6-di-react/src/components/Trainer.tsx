@@ -133,13 +133,12 @@ const Trainer: FC<TrainerProps> = ({ sequences }) => {
     };
   }, [sequence]);
   
-  
-  
   const pauseAndResult = (success: boolean, msg: string) => {
     const v = videoRef.current;
     if (v) v.pause();
     handleResult(success, msg);
   };
+
   // Timing & input handling
   useEffect(() => {
     const video = videoRef.current;
@@ -237,15 +236,8 @@ const Trainer: FC<TrainerProps> = ({ sequences }) => {
     };
   }, [sequence]);
   
-  
-  
-  
-  
-
   function handleResult(success: boolean, message: string) {
-
     console.log("▶ handleResult called:", success, message);
-
     const video = videoRef.current!;
     video.pause();
     setOverlay({ text: message, success });
@@ -253,9 +245,7 @@ const Trainer: FC<TrainerProps> = ({ sequences }) => {
       pass: prev.pass + (success ? 1 : 0),
       fail: prev.fail + (success ? 0 : 1),
     }));
-    // you still have setFeedback if you need it, but you can remove one of overlay/feedback
     setFeedback({ text: message, success });
-  
     // 3) after 1s, clear & advance, and re‑enable input
     setTimeout(() => {
       setOverlay(null);

@@ -1,6 +1,9 @@
 [
 
-    { "id": "di-test", "src": "/videos/sample.mp4", "driveImpactTime": 1.07  },
-    { "id": "no-di-test", "src": "/videos/sample2.mp4", "driveImpactTime": null  }
+    { "id": "dr-di", "src": "/videos/dr-di.mp4", "driveImpactTime": 1.5 },
+    { "id": "raw-di", "src": "/videos/raw-di.mp4", "driveImpactTime": 1.3 },
+    { "id": "dr-punch-di", "src": "/videos/dr-punch-di.mp4", "driveImpactTime": 1.9  },
+    { "id": "dr-punch", "src": "/videos/dr-punch.mp4", "driveImpactTime": null  },
+    { "id": "hado", "src": "/videos/hado.mp4", "driveImpactTime": null  }
   ]
   
