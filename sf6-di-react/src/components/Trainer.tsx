@@ -194,7 +194,7 @@ const Trainer: FC<TrainerProps> = ({ sequences }) => {
     video.requestVideoFrameCallback(onFrame);
   
     // INPUT handler
-    const handleClick = () => {
+    const handleClick = (e: MouseEvent | KeyboardEvent) => {
       const clickTs = performance.now();
       const clickMedia = video.currentTime;
       console.log(
@@ -218,7 +218,7 @@ const Trainer: FC<TrainerProps> = ({ sequences }) => {
     };
     window.addEventListener('click', handleClick);
     window.addEventListener('keydown', e => {
-      if (e.code === 'Space') handleClick();
+      if (e.code === 'Space') handleClick(e);
     });
   
     // play from the top
